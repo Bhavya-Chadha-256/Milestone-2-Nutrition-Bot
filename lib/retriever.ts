@@ -7,8 +7,7 @@
 // Vector search: Chroma DB HTTP client (http://127.0.0.1:8000)
 // Metadata enrichment: SQLite documents table (via db.ts)
 
-import { ChromaClient } from "chromadb";
-import { getDocumentByDocId } from "./db";
+import { getDocumentByDocId, getAllChunks } from "./db";
 
 export interface RetrievalOptions {
   query: string;
@@ -70,12 +69,18 @@ async function embedQuery(text: string): Promise<number[]> {
   return json.embedding;
 }
 
-// ── 2. Chroma DB client ──────────────────────────────────────────────────────
-
-const CHROMA_URL = process.env.CHROMA_URL ?? "http://127.0.0.1:8000";
-
-// Shared client — instantiated once per server process
-const chromaClient = new ChromaClient({ host: "127.0.0.1", port: 8000, ssl: false });
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
 
 // ── 3. Main retrieval function ───────────────────────────────────────────────
 
@@ -85,41 +90,42 @@ export async function retrieveChunks(
   // Step 1: embed the query with the same model used during indexing
   const queryEmbedding = await embedQuery(options.query);
 
-  // Step 2: search Chroma DB collection
-  const collection = await chromaClient.getCollection({ name: "nutrition_chunks" });
-
-  const results = await collection.query({
-    queryEmbeddings: [queryEmbedding],
-    nResults: options.k ?? 6,
-    where: options.filter ? { doc_id: options.filter.doc_id } : undefined,
+  // Step 2: Fetch all chunks from SQLite and compute similarity locally
+  // This bypasses the need for Chroma DB (and avoids AVX instruction segfaults on cheap cloud CPUs)
+  const allChunks = getAllChunks() as any[];
+  
+  let scoredChunks = allChunks.map((chunk) => {
+    // Parse the stored JSON array embedding
+    const chunkEmbedding = JSON.parse(chunk.embedding);
+    const score = cosineSimilarity(queryEmbedding, chunkEmbedding);
+    return { ...chunk, score };
   });
 
-  if (!results.ids[0] || results.ids[0].length === 0) return [];
+  // Apply optional filtering
+  if (options.filter?.doc_id) {
+    scoredChunks = scoredChunks.filter(c => c.doc_id === options.filter!.doc_id);
+  }
 
-  // Step 3: return results enriched with SQLite metadata (source_url)
+  // Sort by highest score descending
+  scoredChunks.sort((a, b) => b.score - a.score);
+
+  // Take top K
+  const topK = scoredChunks.slice(0, options.k ?? 6);
+
+  // Step 3: return results enriched with SQLite metadata
   const retrieved: RetrievedChunk[] = [];
 
-  for (let i = 0; i < results.ids[0].length; i++) {
-    const id = results.ids[0][i];
-    const content = results.documents[0][i] || "";
-    const meta = results.metadatas[0][i] as Record<string, string | number>;
-
-    // Chroma returns cosine distance (0 = identical), convert to similarity score
-    const distance = results.distances?.[0][i] ?? 0;
-    const similarity_score = 1 - distance;
-
-    // Fetch source_url from SQLite — Chroma only stores what was indexed
-    const doc = await getDocumentByDocId(meta.doc_id as string);
-
+  for (const result of topK) {
+    const doc = await getDocumentByDocId(result.doc_id);
     retrieved.push({
-      chunk_id: id,
-      content,
-      document_name: meta.document_name as string,
-      publisher: meta.publisher as string,
-      year: meta.year as number,
-      section_heading: meta.section_heading as string,
+      chunk_id: result.id,
+      content: result.content,
+      document_name: result.document_name,
+      publisher: result.publisher,
+      year: result.year,
+      section_heading: result.section_heading,
       source_url: doc?.source_url ?? "",
-      similarity_score,
+      similarity_score: result.score,
     });
   }
 

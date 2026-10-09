@@ -215,3 +215,8 @@ export function getDocumentByDocId(docId: string): DocumentMeta | undefined {
   const db = getDb();
   return db.prepare("SELECT * FROM documents WHERE doc_id = ?").get(docId) as DocumentMeta | undefined;
 }
+
+export function getAllChunks() {
+  const db = getDb();
+  return db.prepare("SELECT * FROM chunks").all();
+}
