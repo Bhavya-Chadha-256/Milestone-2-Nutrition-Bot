@@ -4,6 +4,8 @@
 import Groq from "groq-sdk";
 import { ChatResponseSchema, type ChatResponse } from "./schema";
 import { SYSTEM_PROMPT } from "./systemPrompt";
+import dns from "node:dns";
+dns.setDefaultResultOrder("ipv4first");
 
 // Primary model. Fallback: "qwen/qwen3-27b"
 const MODEL = "openai/gpt-oss-120b";

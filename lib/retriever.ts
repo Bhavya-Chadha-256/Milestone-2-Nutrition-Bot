@@ -8,6 +8,8 @@
 // Metadata enrichment: SQLite documents table (via db.ts)
 
 import { getDocumentByDocId, getAllChunks } from "./db";
+import dns from "node:dns";
+dns.setDefaultResultOrder("ipv4first");
 
 export interface RetrievalOptions {
   query: string;
