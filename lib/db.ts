@@ -13,7 +13,7 @@ let _db: Database.Database | null = null;
 export function getDb(): Database.Database {
   if (!_db) {
     _db = new Database(path.resolve(/*turbopackIgnore: true*/ DB_PATH));
-    _db.pragma("journal_mode = WAL");
+    _db.pragma("journal_mode = DELETE"); // WAL mode can cause segfaults on some network-attached persistent disks
     _db.pragma("foreign_keys = ON");
     initSchema(_db);
   }
