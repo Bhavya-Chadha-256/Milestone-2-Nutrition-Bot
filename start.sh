@@ -5,8 +5,7 @@ echo "Ensuring data directory exists..."
 mkdir -p /data/chroma_db
 
 # 1. No Chroma DB needed anymore! (SQLite native vector search enabled)
-echo "Starting local Python Embedding Server..."
-python3 scripts/embed_server.py &
+# 2. Local Python Embedding Server disabled to prevent OOMs on Render Free Tier
 
 # Wait a few seconds for services to boot
 sleep 5

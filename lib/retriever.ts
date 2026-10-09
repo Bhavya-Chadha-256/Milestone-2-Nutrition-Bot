@@ -9,6 +9,9 @@
 
 import { getDocumentByDocId, getAllChunks } from "./db";
 import dns from "node:dns";
+import axios from "axios";
+
+// Force IPv4 to prevent ENOTFOUND inside Docker containers
 dns.setDefaultResultOrder("ipv4first");
 
 export interface RetrievalOptions {
@@ -33,20 +36,44 @@ export interface RetrievedChunk {
 const EMBED_SERVER = process.env.EMBED_SERVER_URL ?? "http://127.0.0.1:8001";
 
 async function embedQuery(text: string): Promise<number[]> {
-  const res = await fetch(`${EMBED_SERVER}/embed`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-
-  if (!res.ok) {
-    throw new Error(
-      `Embed server returned ${res.status}: ${await res.text()}`
-    );
+  const hfToken = process.env.HF_TOKEN;
+  if (!hfToken) {
+    throw new Error("HF_TOKEN environment variable is strictly required. Local embedding is disabled to prevent OOMs.");
   }
 
-  const json = (await res.json()) as { embedding: number[]; dimensions: number };
-  return json.embedding;
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      const res = await axios.post(
+        "https://api-inference.huggingface.co/pipeline/feature-extraction/jinaai/jina-embeddings-v2-small-en",
+        { inputs: text },
+        {
+          headers: {
+            "Authorization": `Bearer ${hfToken}`,
+            "Content-Type": "application/json"
+          },
+          // Treat 503 as a valid response so we can catch and retry it
+          validateStatus: (status) => status < 400 || status === 503,
+          timeout: 30000, // 30 seconds
+        }
+      );
+
+      if (res.status === 503) {
+        console.warn("[HF API] Model is loading. Retrying in 10 seconds...");
+        await new Promise(r => setTimeout(r, 10000));
+        retries--;
+        continue;
+      }
+
+      // HuggingFace returns the exact array structure in data
+      const data = res.data;
+      return Array.isArray(data[0]) ? data[0] : data;
+
+    } catch (error: any) {
+      throw new Error(`HF API Request failed: ${error.message}`);
+    }
+  }
+  throw new Error("HF API timed out loading the model after multiple retries.");
 }
 
 function cosineSimilarity(vecA: number[], vecB: number[]): number {

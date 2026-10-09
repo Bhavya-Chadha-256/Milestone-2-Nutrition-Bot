@@ -19,9 +19,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the embedding model so it doesn't delay container startup
-RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('jinaai/jina-embeddings-v2-small-en', trust_remote_code=True)"
-
 # Install Node dependencies
 COPY package*.json ./
 RUN npm ci
