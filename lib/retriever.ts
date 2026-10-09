@@ -34,22 +34,32 @@ async function embedQuery(text: string): Promise<number[]> {
   const hfToken = process.env.HF_TOKEN;
 
   if (hfToken) {
-    const res = await fetch("https://api-inference.huggingface.co/pipeline/feature-extraction/jinaai/jina-embeddings-v2-small-en", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${hfToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ inputs: text }),
-    });
+    let retries = 3;
+    while (retries > 0) {
+      const res = await fetch("https://api-inference.huggingface.co/pipeline/feature-extraction/jinaai/jina-embeddings-v2-small-en", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${hfToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ inputs: text }),
+      });
 
-    if (!res.ok) {
-      throw new Error(`HF API returned ${res.status}: ${await res.text()}`);
+      if (res.status === 503) {
+        console.warn("[HF API] Model is loading. Retrying in 10 seconds...");
+        await new Promise(r => setTimeout(r, 10000));
+        retries--;
+        continue;
+      }
+
+      if (!res.ok) {
+        throw new Error(`HF API returned ${res.status}: ${await res.text()}`);
+      }
+
+      const json = await res.json();
+      return Array.isArray(json[0]) ? json[0] : json;
     }
-
-    const json = await res.json();
-    // HF Inference API might return a 1D array or a nested 2D array depending on inputs
-    return Array.isArray(json[0]) ? json[0] : json;
+    throw new Error("HF API timed out loading the model after multiple retries.");
   }
 
   // Fallback to local embed server
