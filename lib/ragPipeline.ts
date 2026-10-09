@@ -22,7 +22,7 @@ function getGroqClient(): Groq {
   return _groq;
 }
 
-const MODEL = process.env.GROQ_MODEL ?? "llama-3.1-70b-versatile";
+const MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 
 // ── Scope guard refusal ──────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import { ChatResponseSchema, type ChatResponse } from "./schema";
 import { SYSTEM_PROMPT } from "./systemPrompt";
 
 // Primary model. Fallback: "qwen/qwen3-27b"
-const MODEL = "llama-3.1-70b-versatile";
+const MODEL = "openai/gpt-oss-120b";
 
 let _client: Groq | null = null;
 function getGroqClient(): Groq {
