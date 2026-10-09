@@ -33,38 +33,6 @@ export interface RetrievedChunk {
 const EMBED_SERVER = process.env.EMBED_SERVER_URL ?? "http://127.0.0.1:8001";
 
 async function embedQuery(text: string): Promise<number[]> {
-  const hfToken = process.env.HF_TOKEN;
-
-  if (hfToken) {
-    let retries = 3;
-    while (retries > 0) {
-      const res = await fetch("https://api-inference.huggingface.co/pipeline/feature-extraction/jinaai/jina-embeddings-v2-small-en", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${hfToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ inputs: text }),
-      });
-
-      if (res.status === 503) {
-        console.warn("[HF API] Model is loading. Retrying in 10 seconds...");
-        await new Promise(r => setTimeout(r, 10000));
-        retries--;
-        continue;
-      }
-
-      if (!res.ok) {
-        throw new Error(`HF API returned ${res.status}: ${await res.text()}`);
-      }
-
-      const json = await res.json();
-      return Array.isArray(json[0]) ? json[0] : json;
-    }
-    throw new Error("HF API timed out loading the model after multiple retries.");
-  }
-
-  // Fallback to local embed server
   const res = await fetch(`${EMBED_SERVER}/embed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
