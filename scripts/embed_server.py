@@ -13,6 +13,10 @@ Listens on http://127.0.0.1:8001
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+import torch
+torch.set_num_threads(1)
 from sentence_transformers import SentenceTransformer
 import uvicorn
 
