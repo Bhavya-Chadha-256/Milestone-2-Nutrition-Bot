@@ -34,6 +34,21 @@ function buildScopeGuardResponse(): ChatResponse {
   };
 }
 
+// ── JSON cleanup helper ───────────────────────────────────────────────────────
+
+function cleanJson(raw: string): string {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  }
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    cleaned = cleaned.slice(start, end + 1);
+  }
+  return cleaned;
+}
+
 // ── LLM call ─────────────────────────────────────────────────────────────────
 
 async function callLLM(
@@ -48,9 +63,8 @@ async function callLLM(
       { role: "system", content: systemPrompt },
       ...messages,
     ],
-    response_format: { type: "json_object" },
     temperature: 0.2,
-    max_tokens: 1536,
+    max_tokens: 1024,
   });
 
   const raw = completion.choices[0]?.message?.content ?? "";
@@ -58,7 +72,7 @@ async function callLLM(
   // Parse JSON
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(cleanJson(raw));
   } catch {
     throw new Error(`LLM returned non-JSON: "${raw.slice(0, 300)}"`);
   }
@@ -69,7 +83,7 @@ async function callLLM(
     console.warn(`[ragPipeline] LLM schema mismatch. Retrying... Error: ${validated.error.message}`);
     
     // Retry once with stricter prompt
-    const retryPrompt = systemPrompt + `\n\nCRITICAL FIX: Your previous response was invalid. You MUST output a strictly valid JSON object matching the requested schema. Error: ${validated.error.message}`;
+    const retryPrompt = systemPrompt + `\n\nCRITICAL FIX: Your previous response did not match the expected format. Ensure "claims" contains objects with "claim_text" and "source". Error: ${validated.error.message}`;
     
     const retryCompletion = await groq.chat.completions.create({
       model: MODEL,
@@ -77,15 +91,14 @@ async function callLLM(
         { role: "system", content: retryPrompt },
         ...messages,
       ],
-      response_format: { type: "json_object" },
-      temperature: 0.1, // lower temp for retry
-      max_tokens: 1536,
+      temperature: 0.1,
+      max_tokens: 1024,
     });
     
     const retryRaw = retryCompletion.choices[0]?.message?.content ?? "";
     let retryParsed: unknown;
     try {
-      retryParsed = JSON.parse(retryRaw);
+      retryParsed = JSON.parse(cleanJson(retryRaw));
     } catch {
       throw new Error(`LLM returned non-JSON on retry: "${retryRaw.slice(0, 300)}"`);
     }
@@ -123,11 +136,21 @@ export async function ragPipeline(
   }
 
   // Step 4: Build prompt with retrieved context
-  // Only pass the last 4 messages to save tokens/speed up inference
-  const history = getHistory(sessionId).slice(-4).map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  // Only pass the last 4 messages, extracting text/answer to avoid inflating token count
+  const history = getHistory(sessionId).slice(-4).map((m) => {
+    let content = m.content;
+    try {
+      const p = JSON.parse(m.content);
+      content = p.text ?? p.answer ?? m.content;
+    } catch {
+      // not JSON
+    }
+    return {
+      role: m.role as "user" | "assistant",
+      content,
+    };
+  });
+
   const { systemPrompt, messages } = buildPrompt(
     gate.relevant_chunks,
     history,

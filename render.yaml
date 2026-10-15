@@ -2,17 +2,14 @@ services:
   - type: web
     name: nutrition-bot-milestone2
     env: docker
-    plan: starter
-    disk:
-      name: nutrition-data
-      mountPath: /data
-      sizeGB: 1
+    plan: free
     envVars:
       - key: GROQ_API_KEY
-        sync: false # Set this manually in the Render dashboard!
+        sync: false # Set this in the Render dashboard environment variables
       - key: SQLITE_DB_PATH
-        value: /data/nutrition-bot.db
+        value: ./nutrition-bot.db
       - key: RETRIEVAL_K
         value: 3
       - key: RELEVANCE_THRESHOLD
         value: 0.75
+

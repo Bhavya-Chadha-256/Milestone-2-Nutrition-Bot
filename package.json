@@ -12,6 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
     "@types/better-sqlite3": "^9.6.0",
     "axios": "^1.20.0",
     "better-sqlite3": "^13.0.3",
@@ -37,6 +38,8 @@
     "typescript": "^5"
   },
   "allowScripts": {
-    "better-sqlite3@13.0.3": true
+    "better-sqlite3@13.0.3": true,
+    "onnxruntime-node@1.30.0": true,
+    "protobufjs@7.6.6": true
   }
 }

@@ -1,15 +1,14 @@
 #!/bin/bash
 set -e
 
-echo "Ensuring data directory exists..."
-mkdir -p /data/chroma_db
+# If a persistent disk is configured at SQLITE_DB_PATH (e.g. /data/nutrition-bot.db)
+# and it does not exist yet on a fresh mount, seed it from the pre-indexed /app/nutrition-bot.db
+if [ -n "$SQLITE_DB_PATH" ] && [ "$SQLITE_DB_PATH" != "./nutrition-bot.db" ] && [ ! -f "$SQLITE_DB_PATH" ]; then
+  echo "Target DB $SQLITE_DB_PATH does not exist. Initializing from pre-indexed /app/nutrition-bot.db..."
+  mkdir -p "$(dirname "$SQLITE_DB_PATH")"
+  cp /app/nutrition-bot.db "$SQLITE_DB_PATH"
+fi
 
-# 1. No Chroma DB needed anymore! (SQLite native vector search enabled)
-# 2. Local Python Embedding Server disabled to prevent OOMs on Render Free Tier
+echo "Starting Next.js on port ${PORT:-3000}..."
+exec npx next start -p "${PORT:-3000}"
 
-# Wait a few seconds for services to boot
-sleep 5
-
-# 3. Start Next.js frontend & API
-echo "Starting Next.js..."
-npm run start

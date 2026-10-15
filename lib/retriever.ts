@@ -2,17 +2,13 @@
 // Phase 4 — Retrieval Module
 // Handles: query embedding → vector search → metadata-rich results
 //
-// Embedding: calls local Python embed_server.py (http://127.0.0.1:8001/embed)
-//   which uses jinaai/jina-embeddings-v2-small-en — SAME model used during indexing.
-// Vector search: Chroma DB HTTP client (http://127.0.0.1:8000)
+// Embedding: runs jinaai/jina-embeddings-v2-small-en locally via
+//   @huggingface/transformers (ONNX) — SAME model used during indexing.
+//   No API key required. Model is downloaded once and cached.
+// Vector search: cosine similarity against SQLite-stored embeddings
 // Metadata enrichment: SQLite documents table (via db.ts)
 
 import { getDocumentByDocId, getAllChunks } from "./db";
-import dns from "node:dns";
-import axios from "axios";
-
-// Force IPv4 to prevent ENOTFOUND inside Docker containers
-dns.setDefaultResultOrder("ipv4first");
 
 export interface RetrievalOptions {
   query: string;
@@ -31,50 +27,41 @@ export interface RetrievedChunk {
   similarity_score: number;
 }
 
-// ── 1. Query Embedding via local Python embed server ─────────────────────────
+// ── 1. Local Query Embedding via @huggingface/transformers ───────────────────
 
-const EMBED_SERVER = process.env.EMBED_SERVER_URL ?? "http://127.0.0.1:8001";
+// Lazy-loaded pipeline — downloads the ONNX model on first use, then cached
+let _pipelinePromise: Promise<any> | null = null;
+
+function getEmbeddingPipeline(): Promise<any> {
+  if (!_pipelinePromise) {
+    _pipelinePromise = (async () => {
+      // Dynamic import to avoid issues with Next.js bundling
+      const { pipeline } = await import("@huggingface/transformers");
+      console.log("[retriever] Loading local Jina embedding model (first time may download ~130 MB)...");
+      const extractor = await pipeline(
+        "feature-extraction",
+        "Xenova/jina-embeddings-v2-small-en",
+        { dtype: "fp32" }
+      );
+      console.log("[retriever] Jina embedding model loaded successfully.");
+      return extractor;
+    })();
+  }
+  return _pipelinePromise;
+}
 
 async function embedQuery(text: string): Promise<number[]> {
-  const hfToken = process.env.HF_TOKEN;
-  if (!hfToken) {
-    throw new Error("HF_TOKEN environment variable is strictly required. Local embedding is disabled to prevent OOMs.");
-  }
-
-  let retries = 3;
-  while (retries > 0) {
-    try {
-      const res = await axios.post(
-        "https://api-inference.huggingface.co/pipeline/feature-extraction/jinaai/jina-embeddings-v2-small-en",
-        { inputs: text },
-        {
-          headers: {
-            "Authorization": `Bearer ${hfToken}`,
-            "Content-Type": "application/json"
-          },
-          // Treat 503 as a valid response so we can catch and retry it
-          validateStatus: (status) => status < 400 || status === 503,
-          timeout: 30000, // 30 seconds
-        }
-      );
-
-      if (res.status === 503) {
-        console.warn("[HF API] Model is loading. Retrying in 10 seconds...");
-        await new Promise(r => setTimeout(r, 10000));
-        retries--;
-        continue;
-      }
-
-      // HuggingFace returns the exact array structure in data
-      const data = res.data;
-      return Array.isArray(data[0]) ? data[0] : data;
-
-    } catch (error: any) {
-      throw new Error(`HF API Request failed: ${error.message}`);
-    }
-  }
-  throw new Error("HF API timed out loading the model after multiple retries.");
+  const extractor = await getEmbeddingPipeline();
+  const output = await extractor(text, {
+    pooling: "mean",
+    normalize: true,
+  });
+  // output.tolist() returns [[...embedding...]] for a single input
+  const list = output.tolist();
+  return Array.isArray(list[0]) ? list[0] : list;
 }
+
+// ── 2. Cosine similarity ────────────────────────────────────────────────────
 
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
   let dotProduct = 0;
