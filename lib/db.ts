@@ -160,7 +160,7 @@ export function getSessionMessages(sessionId: string): ParsedSessionMessage[] {
   });
 }
 
-export function getAllSessions(): Array<{ id: string; title: string; created_at: string; message_count: number }> {
+export function getAllSessions(limit: number = 150): Array<{ id: string; title: string; created_at: string; message_count: number }> {
   const db = getDb();
   const rows = db
     .prepare(
@@ -170,9 +170,10 @@ export function getAllSessions(): Array<{ id: string; title: string; created_at:
        LEFT JOIN messages m ON m.session_id = s.id
        GROUP BY s.id
        HAVING COUNT(m.id) > 0
-       ORDER BY s.created_at DESC`
+       ORDER BY s.created_at DESC
+       LIMIT ?`
     )
-    .all() as any[];
+    .all(limit) as any[];
 
   return rows.map((r) => {
     let title = "Chat Conversation";
@@ -216,6 +217,17 @@ export function saveMessages(
       "assistant",
       JSON.stringify(assistantContent)
     );
+
+    // Prune historical sessions beyond 150 to keep SQLite lean and performant
+    try {
+      db.prepare(`
+        DELETE FROM sessions WHERE id NOT IN (
+          SELECT id FROM sessions ORDER BY created_at DESC LIMIT 150
+        )
+      `).run();
+    } catch {
+      // Non-blocking cleanup
+    }
   })();
 }
 

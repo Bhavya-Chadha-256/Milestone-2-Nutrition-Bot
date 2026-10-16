@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ session_id: sessionId, messages }, { headers: CORS_HEADERS });
     }
 
-    const sessions = getAllSessions();
+    const rawLimit = parseInt(searchParams.get("limit") || "150", 10);
+    const limit = isNaN(rawLimit) || rawLimit <= 0 ? 150 : Math.min(rawLimit, 150);
+    const sessions = getAllSessions(limit);
     return NextResponse.json({ sessions }, { headers: CORS_HEADERS });
   } catch (error: any) {
     console.error("[/api/history]", error);

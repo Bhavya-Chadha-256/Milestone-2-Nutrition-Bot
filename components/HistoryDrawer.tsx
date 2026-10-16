@@ -69,7 +69,9 @@ export function HistoryDrawer({
             </div>
             <div>
               <h2 className="text-sm font-semibold text-zinc-100">Chat History</h2>
-              <p className="text-[11px] text-zinc-400">{sessions.length} saved conversations</p>
+              <p className="text-[11px] text-zinc-400">
+                {sessions.length} saved {sessions.length === 1 ? "conversation" : "conversations"} (max 150)
+              </p>
             </div>
           </div>
 

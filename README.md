@@ -24,7 +24,7 @@ An evidence-based dietary guidance and food safety conversational system powered
 
 ### 3. Chat History & Conversation Drawer
 - **Last 5 Chats Sidebar:** Instant access to recent conversations on desktop and mobile.
-- **Full History Drawer:** Search and revisit previous chat sessions persisted in SQLite.
+- **Full History Drawer:** Search and revisit previous chat sessions persisted in SQLite (automatically limited to the last 150 older chats to optimize storage and performance).
 - **Session Continuity:** Sessions maintain conversation context across user turns.
 
 ### 4. Categorized Predefined Discovery Prompts
