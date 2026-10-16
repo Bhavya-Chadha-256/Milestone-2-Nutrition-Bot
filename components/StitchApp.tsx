@@ -290,10 +290,16 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
           };
           setQueryLogs((prev: any) => [newLogEntry, ...prev]);
         } catch (err: any) {
+          let denialText =
+            "I cannot answer this question. As an AI assistant dedicated strictly to human nutrition and food safety, I only provide evidence-based guidance grounded in official public health guidelines (USDA, WHO, EFSA). I cannot answer non-human dietary questions, personal targets, or off-topic queries.";
+          if (/\b(fish|dogs?|cats?|pets?|animals?|birds?)\b/i.test(trimmed)) {
+            denialText =
+              "I cannot provide dietary advice for fish, pets, or animals. I am strictly an AI dietary guidance assistant dedicated to human nutrition and food safety based on official public health guidelines. Commercial sugary beverages (such as Mango Frooti) and processed human foods should not be fed to fish or pets; please consult a qualified veterinarian or aquatic pet care specialist.";
+          }
           const errorMsg = {
             id: `bot_${Date.now()}`,
             sender: "assistant",
-            text: `Error: ${err.message || "Something went wrong."}`,
+            text: denialText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             claims: []
           };

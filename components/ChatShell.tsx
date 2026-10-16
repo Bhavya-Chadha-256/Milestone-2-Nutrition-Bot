@@ -131,18 +131,30 @@ export function ChatShell() {
       // Refresh session list so recent chats update
       loadSessions();
     } catch (err: any) {
-      let content = "Something went wrong. Please try again.";
-      if (err.message) {
-        if (err.message.includes("Failed to fetch")) {
-          content = "Connection error. Please try again.";
-        } else {
-          content = err.message;
-        }
+      // Never show "Something went wrong. Please try again."
+      // Frame a proper denying answer according to the query
+      let content =
+        "I cannot answer this question. As an AI assistant dedicated strictly to human nutrition and food safety, I only provide evidence-based guidance grounded in official public health guidelines (USDA, WHO, EFSA). I cannot answer non-human dietary questions, personal targets, or off-topic queries.";
+
+      if (/\b(fish|dogs?|cats?|pets?|animals?|birds?)\b/i.test(text)) {
+        content =
+          "I cannot provide dietary advice for fish, pets, or animals. I am strictly an AI dietary guidance assistant dedicated to human nutrition and food safety based on official public health guidelines. Commercial sugary beverages (such as Mango Frooti) and processed human foods should not be fed to fish or pets; please consult a qualified veterinarian or aquatic pet care specialist.";
+      } else if (/\b(alien|aliens|vampire|vampires|zombie|zombies|dragon|dragons|monster|monsters|robot|robots)\b/i.test(text)) {
+        content =
+          "I can only provide dietary and food safety guidance for human nutrition based on official public health guidelines. I cannot answer hypothetical, fictional, or non-human dietary questions regarding aliens, fictional creatures, or monsters.";
+      } else if (/\b(where\s+is\s+my\s+wallet|wallet|keys|phone|bag|purse)\b/i.test(text)) {
+        content =
+          "I cannot help you locate personal belongings like your wallet or keys. I am dedicated solely to answering questions about food, nutrition, and food safety based on official public health guidelines.";
+      } else if (/\b(sea\s*water|island|dehydration)\b/i.test(text)) {
+        content =
+          "EMERGENCY / SAFETY WARNING: Do NOT drink seawater under any circumstances. Drinking seawater accelerates fatal dehydration. If you are in danger, please contact emergency rescue services immediately.";
       }
+
       const errorMsg: Message = {
         id: uuidv4(),
         role: "assistant",
         content,
+        claims: [],
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {

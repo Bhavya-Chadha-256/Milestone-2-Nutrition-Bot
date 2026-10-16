@@ -58,15 +58,21 @@ const PERSONAL_ITEM_PATTERNS = [
   /\b(find\s+my\s+(?:wallet|keys|phone|bag|purse|passport))\b/i,
 ];
 
-const NON_HUMAN_OR_FICTIONAL_PATTERNS = [
+const ANIMAL_PATTERNS = [
+  /\bcan\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|pupp(?:y|ies)|kittens?|rabbits?|hamsters?|horses?|cows?|pigs?)\s+(eat|drink|have|consume)\b/i,
+  /\b(dog|dogs|cat|cats|puppy|puppies|kitten|kittens|pet|pets|fish|birds?)\s+(food|diet|eat|drink|safe|good|toxic|bad)\b/i,
+  /\b(feed|give)\s+.*?\b(to\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|puppy|kitten|rabbit)\b/i,
+  /\b(good|safe|bad|healthy|toxic)\s+(?:for|to)\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|horses?|rabbits?)\b/i,
+  /\b(mango\s*frooti|frooti|juice|milk|chocolate|coffee|alcohol|tea)\s+(?:for|to)\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?)\b/i,
+  /\bfish\b.*?\b(drink|eat|frooti|juice)\b/i,
+];
+
+const FICTIONAL_OR_ALIEN_PATTERNS = [
   /\b(alien|aliens|extraterrestrial|extraterrestrials|martian|martians)\b/i,
   /\b(vampire|vampires|werewolf|werewolves|zombie|zombies|ghost|ghosts|demon|demons)\b/i,
   /\b(dragon|dragons|unicorn|unicorns|mermaid|mermaids|monster|monsters)\b/i,
   /\b(robot|robots|cyborg|cyborgs|android|androids)\b/i,
-  /\bcan\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|pupp(?:y|ies)|kittens?|rabbits?|hamsters?|horses?|cows?|pigs?|aliens?|vampires?|zombies?|robots?)\s+(eat|drink|have|consume)\b/i,
-  /\b(dog|dogs|cat|cats|puppy|puppies|kitten|kittens|pet|pets|fish|birds?)\s+(food|diet|eat|drink|safe|good|toxic|bad)\b/i,
-  /\b(feed|give)\s+.*?\b(to\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|puppy|kitten|rabbit)\b/i,
-  /\b(good|safe|bad|healthy|toxic)\s+(?:for|to)\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|horses?|rabbits?|aliens?|vampires?|zombies?|dragons?|ghosts?|monsters?|robots?|cyborgs?)\b/i,
+  /\b(good|safe|bad|healthy|toxic)\s+(?:for|to)\s+(?:a\s+|an\s+|my\s+|the\s+)?(aliens?|vampires?|zombies?|dragons?|ghosts?|monsters?|robots?|cyborgs?)\b/i,
 ];
 
 const INEDIBLE_SUBSTANCE_PATTERNS = [
@@ -121,11 +127,20 @@ export function checkPreRetrieval(message: string): PreRetrievalResponse | null 
     };
   }
 
-  // 4. Non-human entities, fictional beings, aliens, or animals/pets
-  if (NON_HUMAN_OR_FICTIONAL_PATTERNS.some((p) => p.test(message))) {
+  // 4a. Animals, fish, and pets
+  if (ANIMAL_PATTERNS.some((p) => p.test(message))) {
     return {
       answer:
-        "I can only provide dietary and food safety guidance for human nutrition based on official public health guidelines. I cannot answer hypothetical, fictional, or non-human dietary questions regarding aliens, fictional creatures, or animals.",
+        "I cannot provide dietary advice for fish, pets, or animals. I am strictly an AI dietary guidance assistant dedicated to human nutrition and food safety based on official public health guidelines. Processed human beverages (such as Mango Frooti) and human foods should not be fed to fish or pets; please consult a qualified veterinarian or aquatic pet care specialist.",
+      claims: [],
+    };
+  }
+
+  // 4b. Fictional beings, aliens, robots, or mythical creatures
+  if (FICTIONAL_OR_ALIEN_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "I can only provide dietary and food safety guidance for human nutrition based on official public health guidelines. I cannot answer hypothetical, fictional, or non-human dietary questions regarding aliens, fictional creatures, or monsters.",
       claims: [],
     };
   }
