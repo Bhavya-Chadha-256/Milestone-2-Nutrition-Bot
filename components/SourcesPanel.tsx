@@ -4,8 +4,8 @@ import { SourceCard } from "./SourceCard";
 function deduplicateSources(claims: Claim[]): Citation[] {
   const unique = new Map<string, Citation>();
   for (const claim of claims) {
-    if (claim.source) {
-      const key = `${claim.source.document_name}|${claim.source.section}`;
+    if (claim.source && claim.source.document_name) {
+      const key = `${claim.source.document_name}|${claim.source.section || ""}`;
       if (!unique.has(key)) {
         unique.set(key, claim.source);
       }
@@ -25,13 +25,13 @@ export function SourcesPanel({ claims }: { claims: Claim[] }) {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 17L12 22l10-5M2 12l10 5 10-5M12 2L2 7l10 5 10-5-10-5z"/></svg>
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-zinc-100">Sources</h2>
-            <p className="text-[11px] text-zinc-400">Dietary guidance citations</p>
+            <h2 className="text-sm font-semibold text-zinc-100">Chat Sources</h2>
+            <p className="text-[11px] text-zinc-400">Guidance cited in this chat</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
           <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-            {uniqueSources.length} Sources
+            {uniqueSources.length} {uniqueSources.length === 1 ? "Source" : "Sources"}
           </span>
         </div>
       </div>
@@ -42,9 +42,9 @@ export function SourcesPanel({ claims }: { claims: Claim[] }) {
             <div className="w-12 h-12 rounded-full bg-zinc-850 flex items-center justify-center mb-3 text-zinc-400 border border-zinc-800">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/><path d="m14 17-2.83-2.83"/></svg>
             </div>
-            <p className="text-sm font-medium text-zinc-300 mb-1">No sources for this response</p>
+            <p className="text-sm font-medium text-zinc-300 mb-1">No sources for this chat</p>
             <p className="text-xs text-zinc-500 max-w-[220px]">
-              The guidance might not cover this topic or no query was made.
+              Sources referenced during this conversation will appear here and remain visible at all times.
             </p>
           </div>
         ) : (

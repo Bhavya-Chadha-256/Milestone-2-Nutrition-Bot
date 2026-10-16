@@ -158,5 +158,46 @@ export async function ragPipeline(
   );
 
   // Step 5 & 6: LLM call + Zod parse
-  return await callLLM(systemPrompt, messages);
+  const response = await callLLM(systemPrompt, messages);
+
+  // If answer indicates refusal, out of scope, or no information in documents, ensure claims is empty
+  const refusalPatterns = [
+    /do not contain (?:any )?information/i,
+    /does not contain (?:any )?information/i,
+    /don't appear to cover/i,
+    /doesn't appear to cover/i,
+    /no information (?:is )?(?:provided|found|available)/i,
+    /cannot answer/i,
+    /cannot provide/i,
+    /not able to provide/i,
+    /not covered in the/i,
+    /outside (?:the )?scope/i,
+  ];
+
+  const isDeclinedOrNoInfo = refusalPatterns.some((pattern) => pattern.test(response.answer));
+
+  if (isDeclinedOrNoInfo) {
+    response.claims = [];
+  } else {
+    // Only keep claims with valid, non-empty sources and positive factual content
+    response.claims = (response.claims || []).filter((claim) => {
+      if (!claim || !claim.claim_text || !claim.source || !claim.source.document_name) {
+        return false;
+      }
+      if (/does not contain|do not contain|not mentioned|no information|cannot be found/i.test(claim.claim_text)) {
+        return false;
+      }
+      return true;
+    });
+
+    // Enforce mandatory medical advice disclaimer on all advisory responses
+    const hasMedicalDisclaimer = /doctor|dietitian|dietician|physician/i.test(response.answer);
+    if (!hasMedicalDisclaimer) {
+      response.answer =
+        response.answer.trim() +
+        "\n\nDisclaimer: All dietary and medical advice should be checked with a qualified doctor or registered dietitian.";
+    }
+  }
+
+  return response;
 }

@@ -22,7 +22,7 @@ You MUST respond with a single valid JSON object strictly matching this format:
   "answer": "Your 2-5 sentence answer here based on the reference documents.",
   "claims": [
     {
-      "claim_text": "A specific factual claim directly taken from the documents.",
+      "claim_text": "A specific positive factual claim directly taken from the documents answering the query.",
       "source": {
         "document_name": "Document Name",
         "publisher": "Publisher",
@@ -33,6 +33,10 @@ You MUST respond with a single valid JSON object strictly matching this format:
     }
   ]
 }
+CRITICAL RULES FOR CLAIMS:
+- If the documents do NOT contain information to answer the question, or if you state that the documents do not cover the topic: "claims" MUST BE AN EMPTY ARRAY: [].
+- Never extract claims about what documents do NOT contain (no negative claims like "Document X does not mention Y").
+- Only extract claims when positive, verifiable factual evidence directly from the provided reference documents answers the user's question.
 Do not include any explanation or markdown formatting outside the JSON.`;
 
 export function buildPrompt(
@@ -70,11 +74,11 @@ export function buildPrompt(
 Rules:
 - Be factual and specific. Cite sections when helpful.
 - Keep answers between 2–5 sentences unless a list is clearly better.
-- Include between 1 and 3 of the most relevant claims with accurate sources.
+- Include between 1 and 3 of the most relevant positive factual claims directly answering the query, with accurate sources.
 - Never invent facts, authority names, studies, or publications not present in the documents.
-- If the documents don't cover a topic, say so explicitly rather than guessing.
-- Do NOT provide calorie targets or weight loss recommendations.
-- If asked about personal dietary requirements (e.g., "How much do I require?"), you must append a disclaimer stating that individual requirements differ and they should consult a real doctor or registered dietitian for specific personal advice.
+- If the documents don't cover a topic, say so explicitly rather than guessing, and return "claims": [].
+- MANDATORY MEDICAL DISCLAIMER: Any advisory answer, dietary recommendation, nutrient requirement, or food guidance (even when directly taken from reference documents) MUST include this disclaimer at the end:
+"Disclaimer: All dietary and medical advice should be verified with a qualified doctor or registered dietitian."
 
 REFERENCE DOCUMENTS:
 ${contextBlock}

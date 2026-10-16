@@ -111,6 +111,88 @@ export function getHistory(sessionId: string): RawMessage[] {
     .all(sessionId) as RawMessage[];
 }
 
+export interface ParsedSessionMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  claims?: any[];
+  created_at?: string;
+}
+
+export function getSessionMessages(sessionId: string): ParsedSessionMessage[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT id, role, content, created_at
+       FROM messages
+       WHERE session_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(sessionId) as any[];
+
+  return rows.map((r) => {
+    try {
+      const parsed = JSON.parse(r.content);
+      if (r.role === "user") {
+        return {
+          id: r.id,
+          role: "user",
+          content: parsed.text ?? r.content,
+          created_at: r.created_at,
+        };
+      } else {
+        return {
+          id: r.id,
+          role: "assistant",
+          content: parsed.answer ?? parsed.text ?? r.content,
+          claims: parsed.claims ?? [],
+          created_at: r.created_at,
+        };
+      }
+    } catch {
+      return {
+        id: r.id,
+        role: r.role,
+        content: r.content,
+        created_at: r.created_at,
+      };
+    }
+  });
+}
+
+export function getAllSessions(): Array<{ id: string; title: string; created_at: string; message_count: number }> {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.created_at, COUNT(m.id) as message_count,
+              (SELECT content FROM messages WHERE session_id = s.id AND role = 'user' ORDER BY created_at ASC LIMIT 1) as first_user_msg
+       FROM sessions s
+       LEFT JOIN messages m ON m.session_id = s.id
+       GROUP BY s.id
+       HAVING COUNT(m.id) > 0
+       ORDER BY s.created_at DESC`
+    )
+    .all() as any[];
+
+  return rows.map((r) => {
+    let title = "Chat Conversation";
+    if (r.first_user_msg) {
+      try {
+        const p = JSON.parse(r.first_user_msg);
+        title = p.text || title;
+      } catch {
+        title = r.first_user_msg;
+      }
+    }
+    return {
+      id: r.id,
+      title: title.length > 50 ? title.substring(0, 50) + "..." : title,
+      created_at: r.created_at,
+      message_count: r.message_count,
+    };
+  });
+}
+
 export function saveMessages(
   sessionId: string,
   userText: string,
