@@ -39,23 +39,66 @@ function cleanJson(raw: string): string {
   return cleaned;
 }
 
-// ── LLM call ─────────────────────────────────────────────────────────────────
+// ── LLM call with retry & rate limit backoff ─────────────────────────────────
+
+async function groqCreateWithBackoff(
+  params: Parameters<Groq["chat"]["completions"]["create"]>[0],
+  maxRetries = 2
+): Promise<Groq.Chat.ChatCompletion> {
+  const groq = getGroqClient();
+  let delay = 1500;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return (await groq.chat.completions.create({
+        ...params,
+        stream: false,
+      })) as Groq.Chat.ChatCompletion;
+    } catch (err: any) {
+      const isRateLimit =
+        err?.status === 429 ||
+        /rate limit|429/i.test(err?.message || "");
+      if (isRateLimit && attempt < maxRetries) {
+        console.warn(`[ragPipeline] Groq rate limit hit. Waiting ${delay}ms before retry ${attempt + 1}...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 1.5;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Groq API call failed after retries.");
+}
 
 async function callLLM(
   systemPrompt: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<ChatResponse> {
-  const groq = getGroqClient();
-
-  const completion = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...messages,
-    ],
-    temperature: 0.2,
-    max_tokens: 1024,
-  });
+  let completion;
+  try {
+    completion = await groqCreateWithBackoff({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages,
+      ],
+      temperature: 0.2,
+      max_tokens: 1024,
+    });
+  } catch (err: any) {
+    console.error("[ragPipeline] Groq API call error:", err?.message || err);
+    if (err?.status === 429 || /rate limit|429/i.test(err?.message || "")) {
+      return {
+        answer:
+          "I am temporarily experiencing high traffic on my guidance service. Please wait a few moments and try your question again.",
+        claims: [],
+      };
+    }
+    return {
+      answer:
+        "I'm having trouble processing that question right now. Please rephrase or try again in a moment.",
+      claims: [],
+    };
+  }
 
   const raw = completion.choices[0]?.message?.content ?? "";
 
@@ -64,7 +107,13 @@ async function callLLM(
   try {
     parsed = JSON.parse(cleanJson(raw));
   } catch {
-    throw new Error(`LLM returned non-JSON: "${raw.slice(0, 300)}"`);
+    console.warn(`[ragPipeline] Non-JSON response received: "${raw.slice(0, 200)}"`);
+    return {
+      answer:
+        cleanJson(raw) ||
+        "I could not formulate a structured answer for that query. Please ask a specific nutrition or food safety question.",
+      claims: [],
+    };
   }
 
   // Validate with Zod
@@ -72,33 +121,46 @@ async function callLLM(
   if (!validated.success) {
     console.warn(`[ragPipeline] LLM schema mismatch. Retrying... Error: ${validated.error.message}`);
     
-    // Retry once with stricter prompt
-    const retryPrompt = systemPrompt + `\n\nCRITICAL FIX: Your previous response did not match the expected format. Ensure "claims" contains objects with "claim_text" and "source". Error: ${validated.error.message}`;
-    
-    const retryCompletion = await groq.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: retryPrompt },
-        ...messages,
-      ],
-      temperature: 0.1,
-      max_tokens: 1024,
-    });
-    
-    const retryRaw = retryCompletion.choices[0]?.message?.content ?? "";
-    let retryParsed: unknown;
     try {
-      retryParsed = JSON.parse(cleanJson(retryRaw));
+      const retryPrompt = systemPrompt + `\n\nCRITICAL FIX: Your previous response did not match the expected format. Ensure "claims" contains objects with "claim_text" and "source". Error: ${validated.error.message}`;
+      
+      const retryCompletion = await groqCreateWithBackoff({
+        model: MODEL,
+        messages: [
+          { role: "system", content: retryPrompt },
+          ...messages,
+        ],
+        temperature: 0.1,
+        max_tokens: 1024,
+      });
+      
+      const retryRaw = retryCompletion.choices[0]?.message?.content ?? "";
+      let retryParsed: unknown;
+      try {
+        retryParsed = JSON.parse(cleanJson(retryRaw));
+      } catch {
+        return {
+          answer:
+            "I could not formulate a verified response for that query. Please ask a specific question based on official dietary guidance.",
+          claims: [],
+        };
+      }
+      
+      const retryValidated = ChatResponseSchema.safeParse(retryParsed);
+      if (!retryValidated.success) {
+        return {
+          answer: (retryParsed as any)?.answer || "Please rephrase your question regarding nutrition, food safety, or dietary guidelines.",
+          claims: [],
+        };
+      }
+      
+      return retryValidated.data;
     } catch {
-      throw new Error(`LLM returned non-JSON on retry: "${retryRaw.slice(0, 300)}"`);
+      return {
+        answer: "I am temporarily experiencing high traffic. Please wait a few seconds and try your question again.",
+        claims: [],
+      };
     }
-    
-    const retryValidated = ChatResponseSchema.safeParse(retryParsed);
-    if (!retryValidated.success) {
-      throw new Error(`LLM schema mismatch on retry: ${retryValidated.error.message}`);
-    }
-    
-    return retryValidated.data;
   }
 
   return validated.data;

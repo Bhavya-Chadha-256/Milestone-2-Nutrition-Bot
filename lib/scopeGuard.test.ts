@@ -37,6 +37,8 @@ const SMART_DENIAL_TESTS: Array<{ query: string; expectedKeyword: string }> = [
   { query: "Seawater good for aliens?", expectedKeyword: "human nutrition" },
   { query: "Can vampires eat garlic bread?", expectedKeyword: "human nutrition" },
   { query: "What should I feed my cat?", expectedKeyword: "human nutrition" },
+  { query: "cAN FISH DRINK MANGO FROOTI?", expectedKeyword: "human nutrition" },
+  { query: "Is mango frooti good for fish?", expectedKeyword: "human nutrition" },
   { query: "Can I drink motor oil?", expectedKeyword: "inedible" },
 ];
 

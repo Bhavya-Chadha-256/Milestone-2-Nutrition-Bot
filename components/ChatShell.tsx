@@ -95,14 +95,20 @@ export function ChatShell() {
       });
 
       if (!res.ok) {
-        let errMsg = "Something went wrong. Please try again.";
+        let errMsg = "The service is temporarily busy or warming up. Please wait a moment and try again.";
         try {
           const errData = await res.json();
-          if (errData.error && errData.error.startsWith("MODEL_PARSE_ERROR")) {
-            errMsg = "I couldn't format a proper response. Please rephrase.";
+          if (errData.error) {
+            if (errData.error.startsWith("MODEL_PARSE_ERROR")) {
+              errMsg = "I couldn't format a proper response. Please rephrase.";
+            } else if (/rate limit|429/i.test(errData.error)) {
+              errMsg = "I'm temporarily experiencing high traffic. Please wait a few seconds and try again.";
+            } else {
+              errMsg = errData.error;
+            }
           }
         } catch {
-          // ignore JSON parse error
+          // ignore non-JSON error pages
         }
         throw new Error(errMsg);
       }

@@ -63,9 +63,10 @@ const NON_HUMAN_OR_FICTIONAL_PATTERNS = [
   /\b(vampire|vampires|werewolf|werewolves|zombie|zombies|ghost|ghosts|demon|demons)\b/i,
   /\b(dragon|dragons|unicorn|unicorns|mermaid|mermaids|monster|monsters)\b/i,
   /\b(robot|robots|cyborg|cyborgs|android|androids)\b/i,
-  /\b(dog|dogs|cat|cats|puppy|puppies|kitten|kittens|pet|pets)\s+(food|diet|eat|drink|safe|good|toxic|bad)\b/i,
-  /\b(feed|give)\s+(my\s+)?(dog|cat|pet|puppy|kitten)\b/i,
-  /\b(good|safe|bad|healthy)\s+for\s+(aliens?|vampires?|zombies?|dragons?|ghosts?|monsters?|robots?|cyborgs?|dogs?|cats?|pets?)\b/i,
+  /\bcan\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|pupp(?:y|ies)|kittens?|rabbits?|hamsters?|horses?|cows?|pigs?|aliens?|vampires?|zombies?|robots?)\s+(eat|drink|have|consume)\b/i,
+  /\b(dog|dogs|cat|cats|puppy|puppies|kitten|kittens|pet|pets|fish|birds?)\s+(food|diet|eat|drink|safe|good|toxic|bad)\b/i,
+  /\b(feed|give)\s+.*?\b(to\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|puppy|kitten|rabbit)\b/i,
+  /\b(good|safe|bad|healthy|toxic)\s+(?:for|to)\s+(?:a\s+|an\s+|my\s+|the\s+)?(fish|dogs?|cats?|pets?|animals?|birds?|horses?|rabbits?|aliens?|vampires?|zombies?|dragons?|ghosts?|monsters?|robots?|cyborgs?)\b/i,
 ];
 
 const INEDIBLE_SUBSTANCE_PATTERNS = [
