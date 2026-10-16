@@ -3,7 +3,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2-blue?logo=react)](https://react.dev/)
 [![Groq](https://img.shields.io/badge/Groq-API-orange)](https://groq.com/)
-[![Chroma DB](https://img.shields.io/badge/Chroma-Vector_DB-purple)](https://www.trychroma.com/)
+[![Embeddings](https://img.shields.io/badge/Embeddings-Jina_v2_small_ONNX-green)](https://huggingface.co/jinaai/jina-embeddings-v2-small-en)
 [![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-blue?logo=sqlite)](https://sqlite.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -42,6 +42,29 @@ An evidence-based dietary guidance and food safety conversational system powered
 
 ---
 
+## 🧰 Tech Stack
+
+The frontend and backend are one Next.js project written in TypeScript. Python is used only offline, to build the search index.
+
+| Layer | Technology | Used for |
+|---|---|---|
+| **Frontend** | TypeScript, React 19.2, Next.js 16.3 (App Router) | Chat UI, sources panel, history drawer |
+| | Tailwind CSS 4 | Styling |
+| | Motion 13 (`motion/react`) | UI animations |
+| **Backend** | TypeScript on Node.js 22, Next.js route handlers | `/api/chat`, `/api/history`, `/api/documents`, `/api/health`, `/api/logs` |
+| | Groq SDK, `openai/gpt-oss-120b` | Answer generation (the only external API call) |
+| | `@huggingface/transformers` (ONNX), `Xenova/jina-embeddings-v2-small-en` | Embedding the user's question, in-process |
+| | Zod 4 | Validating the LLM's JSON response |
+| **Database** | SQLite through `better-sqlite3` | Chunk vectors, document metadata, sessions, messages |
+| **Index building** (offline) | Python 3 | Scripts in `scripts/` and `migrate.py` |
+| | pymupdf4llm, BeautifulSoup | PDF and HTML → Markdown |
+| | tiktoken (`cl100k_base`) | Token counting for chunking |
+| | sentence-transformers, `jinaai/jina-embeddings-v2-small-en` | Embedding the chunks |
+| | chromadb | Intermediate index, copied into SQLite by `migrate.py` |
+| **Deployment** | Docker (`node:22-bookworm-slim`) on Render free tier | One container, 512 MB RAM |
+
+---
+
 ## 🏗️ Architecture & Pipeline Flow
 
 ```
@@ -68,7 +91,7 @@ An evidence-based dietary guidance and food safety conversational system powered
 │                                                                             │
 │   1. Scope Guard (regex / keywords) ──► Block personal medical advice       │
 │   2. Query Embedding via Local ONNX (@huggingface/transformers Jina-v2)     │
-│   3. Vector Similarity Search (Embedded Chroma DB, k=3, threshold=0.70)     │
+│   3. Cosine Similarity Search over SQLite chunks (k=3, threshold=0.70)      │
 │   4. Relevance Gate ──► If below similarity score, safely decline           │
 │   5. Structured Prompt Builder (injected document chunks with Doc ID URLs)  │
 │   6. LLM Call via Groq SDK (gpt-oss-120b)                                   │
@@ -76,6 +99,28 @@ An evidence-based dietary guidance and food safety conversational system powered
 │   8. Medical Disclaimer Enforcement                                         │
 │   9. SQLite Persistence (better-sqlite3: sessions & messages)               │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Retrieval & Vector Index
+
+| Setting | Value |
+|---|---|
+| Chunking | Split on Markdown section headings; sections over 800 tokens are split by paragraph, then line, then raw tokens (tiktoken `cl100k_base`) |
+| Chunk size / overlap | 800 tokens / 100 tokens |
+| Chunks in index | 563, from 22 documents |
+| Embedding model | `jinaai/jina-embeddings-v2-small-en` (512 dimensions) |
+| Index type | Flat (exact) cosine similarity over the SQLite `chunks` table, no ANN index |
+| k | 3 (`RETRIEVAL_K`) |
+| Relevance threshold | `RELEVANCE_THRESHOLD` |
+
+**Why SQLite and not Chroma at runtime:** `scripts/build_index.py` first builds the index in Chroma (HNSW, cosine). Chroma's native build crashed on Render's CPUs because of AVX instructions, so `migrate.py` copies every chunk and its embedding into the `chunks` table of `nutrition-bot.db`. At request time, `lib/retriever.ts` embeds the question in-process with the ONNX port of the same Jina model (`Xenova/jina-embeddings-v2-small-en`), scores it against every stored vector, and keeps the top k. At 563 vectors this exact scan takes about 24 ms, including the query embedding (measured locally). Chroma is only a build-time step. The running app doesn't use it.
+
+Rebuilding the index (Python, offline):
+```bash
+python3 scripts/parse_documents.py   # corpus/raw → corpus/parsed (pymupdf4llm / BeautifulSoup)
+python3 scripts/build_index.py       # chunk + embed → chroma_db/
+python3 scripts/seed_documents.py    # corpus/metadata.json → documents table
+python3 migrate.py                   # chroma_db/ → chunks table in nutrition-bot.db
 ```
 
 ---
@@ -296,7 +341,7 @@ The application is fully containerized with a self-contained multi-stage `Docker
 ### How It Works on Render Free Tier:
 1. **Self-Contained Embeddings:** Uses `@huggingface/transformers` in-process with the lightweight `Xenova/jina-embeddings-v2-small-en` ONNX model.
 2. **Build-Time Pre-Caching:** The ONNX model is fetched during the Docker build stage (`RUN node -e 'import("@huggingface/transformers")...'`), eliminating runtime download timeouts and cold start latency.
-3. **No External Python/Chroma Server Needed:** Chroma DB runs in embedded SQLite mode, and all dependencies run inside a single Node.js runtime.
+3. **No Vector Database Needed:** The chunk embeddings live in the same SQLite file as chat history (`nutrition-bot.db`, shipped pre-indexed in the image), and ranking runs inside the single Node.js process. No Python or Chroma runs at request time.
 4. **Native Compilation Support:** The Docker image includes `python3`, `make`, and `g++` to compile `better-sqlite3` via `node-gyp`.
 
 ### Deployment Steps:

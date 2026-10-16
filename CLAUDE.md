@@ -50,7 +50,7 @@ If you change refusal wording in the scope guard or prompt, keep the refusal reg
 
 - `lib/groq.ts` and `lib/systemPrompt.ts`: an older client and prompt that nothing imports.
 - `components/StitchApp.tsx`: unused. The UI entry is `app/page.tsx` → `components/ChatShell.tsx`.
-- Chroma: `chromadb`, `chroma_db/` and `scripts/embed_server.py` (FastAPI embedder) remain from earlier phases. The runtime no longer uses Chroma, because brute-force SQLite avoids AVX segfaults on cheap cloud CPUs. The README still describes Chroma.
+- Chroma: `chromadb`, `chroma_db/` and `scripts/embed_server.py` (FastAPI embedder) remain from earlier phases. The runtime no longer uses Chroma, because brute-force SQLite avoids AVX segfaults on cheap cloud CPUs.
 
 ### Data and storage
 
