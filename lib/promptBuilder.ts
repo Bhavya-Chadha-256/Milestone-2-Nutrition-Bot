@@ -27,7 +27,7 @@ You MUST respond with a single valid JSON object strictly matching this format:
         "document_name": "Document Name",
         "publisher": "Publisher",
         "year": 2020,
-        "url": "https://example.com/nutrition",
+        "url": "/api/documents/doc-id",
         "section": "Section Heading"
       }
     }
@@ -37,6 +37,7 @@ CRITICAL RULES FOR CLAIMS:
 - If the documents do NOT contain information to answer the question, or if you state that the documents do not cover the topic: "claims" MUST BE AN EMPTY ARRAY: [].
 - Never extract claims about what documents do NOT contain (no negative claims like "Document X does not mention Y").
 - Only extract claims when positive, verifiable factual evidence directly from the provided reference documents answers the user's question.
+- For "url", use the exact Document URL provided in the document header (e.g. /api/documents/...).
 Do not include any explanation or markdown formatting outside the JSON.`;
 
 export function buildPrompt(
@@ -56,8 +57,8 @@ export function buildPrompt(
   const contextBlock = Array.from(grouped.entries())
     .map(([docName, chunks]) => {
       const meta = chunks[0];
-      const url = meta.source_url && meta.source_url !== "local-upload" ? meta.source_url : "https://example.com/nutrition";
-      const header = `--- ${docName} (${meta.publisher}, ${meta.year}) [URL: ${url}] ---`;
+      const url = meta.source_url || (meta.doc_id ? `/api/documents/${meta.doc_id}` : "/api/documents");
+      const header = `--- ${docName} (${meta.publisher}, ${meta.year}) [Document URL: ${url}] ---`;
       const body = chunks
         .map((c) => {
           // Cap long chunks at 1200 characters to prevent token limit blowups

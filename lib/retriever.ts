@@ -18,6 +18,7 @@ export interface RetrievalOptions {
 
 export interface RetrievedChunk {
   chunk_id: string;
+  doc_id: string;
   content: string;
   document_name: string;
   publisher: string;
@@ -111,14 +112,16 @@ export async function retrieveChunks(
 
   for (const result of topK) {
     const doc = await getDocumentByDocId(result.doc_id);
+    const sourceUrl = doc?.source_url || `/api/documents/${result.doc_id}`;
     retrieved.push({
       chunk_id: result.id,
+      doc_id: result.doc_id,
       content: result.content,
       document_name: result.document_name,
       publisher: result.publisher,
       year: result.year,
       section_heading: result.section_heading,
-      source_url: doc?.source_url ?? "",
+      source_url: sourceUrl,
       similarity_score: result.score,
     });
   }

@@ -295,7 +295,13 @@ export interface DocumentMeta {
 
 export function getDocumentByDocId(docId: string): DocumentMeta | undefined {
   const db = getDb();
-  return db.prepare("SELECT * FROM documents WHERE doc_id = ?").get(docId) as DocumentMeta | undefined;
+  const doc = db.prepare("SELECT * FROM documents WHERE doc_id = ?").get(docId) as DocumentMeta | undefined;
+  if (doc) {
+    if (!doc.source_url || doc.source_url.startsWith("local") || doc.source_url.includes("example.com")) {
+      doc.source_url = `/api/documents/${doc.doc_id}`;
+    }
+  }
+  return doc;
 }
 
 export function getAllChunks() {

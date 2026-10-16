@@ -190,6 +190,27 @@ export async function ragPipeline(
       return true;
     });
 
+    // Ensure every claim has a valid local source document URL
+    for (const claim of response.claims) {
+      if (claim.source) {
+        const matchingChunk = gate.relevant_chunks.find(
+          (c) =>
+            c.document_name.toLowerCase() === claim.source.document_name.toLowerCase() ||
+            claim.source.document_name.toLowerCase().includes(c.document_name.toLowerCase()) ||
+            c.document_name.toLowerCase().includes(claim.source.document_name.toLowerCase())
+        );
+
+        if (matchingChunk) {
+          claim.source.url = matchingChunk.source_url || `/api/documents/${matchingChunk.doc_id}`;
+          claim.source.document_name = matchingChunk.document_name;
+          claim.source.publisher = matchingChunk.publisher;
+          claim.source.year = matchingChunk.year;
+        } else if (!claim.source.url || claim.source.url.includes("example.com")) {
+          claim.source.url = `/api/documents?name=${encodeURIComponent(claim.source.document_name)}`;
+        }
+      }
+    }
+
     // Enforce mandatory medical advice disclaimer on all advisory responses
     const hasMedicalDisclaimer = /doctor|dietitian|dietician|physician/i.test(response.answer);
     if (!hasMedicalDisclaimer) {

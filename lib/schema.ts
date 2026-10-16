@@ -11,7 +11,7 @@ export const CitationSchema = z.object({
       return isNaN(num) ? 2020 : num;
     })
     .catch(2020),
-  url: z.string().catch("https://example.com/nutrition"),
+  url: z.string().catch(""),
   section: z.string().min(1).catch("General"),
 });
 
