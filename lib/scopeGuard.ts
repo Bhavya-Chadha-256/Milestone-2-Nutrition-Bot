@@ -38,3 +38,109 @@ const BLOCKED_PATTERNS = [
 export function isBlocked(message: string): boolean {
   return BLOCKED_PATTERNS.some((pattern) => pattern.test(message));
 }
+
+// Pre-retrieval patterns to intelligently handle and deny non-retrieval queries
+// without wasting vector searches or taking conversational/emergency queries literally.
+
+const THREAT_PATTERNS = [
+  /\b(kill\s+you|murder\s+you|hunt\s+you\s+down|threaten\s+to\s+kill|i\s+will\s+.*kill\s+you|born\s+again\s+then\s+kill\s+you)\b/i,
+  /\b(i('ll| will)\s+(hurt|harm|destroy)\s+you)\b/i,
+];
+
+const EMERGENCY_PATTERNS = [
+  /\b(drink(?:ing)?\s+sea\s*water|sea\s*water\s+daily)\b/i,
+  /\b(die\s+due\s+to\s+dehydration|dying\s+(?:of|from|due\s+to)\s+dehydration|about\s+to\s+die\b.*dehydration)\b/i,
+  /\b(stranded\s+on\s+(?:an?\s+)?island\b.*water|on\s+(?:an?\s+)?island\b.*(?:no\s+water|drink\s+sea\s*water))\b/i,
+];
+
+const PERSONAL_ITEM_PATTERNS = [
+  /\b(where\s+(?:is|are)\s+my\s+(?:wallet|keys|phone|bag|purse|money|passport|glasses|car|backpack))\b/i,
+  /\b(find\s+my\s+(?:wallet|keys|phone|bag|purse|passport))\b/i,
+];
+
+const CAPABILITIES_PATTERNS = [
+  /\b(what\s+(?:you\s+can|can\s+you)\s+do(?:\s+for\s+me|\s+here)?|\bwho\s+are\s+you\b|\bwhat\s+are\s+your\s+capabilities\b|\bwhat\s+is\s+your\s+purpose\b)\b/i,
+  /\b(how\s+can\s+you\s+help(\s+me)?)\b/i,
+];
+
+const OFFICIAL_DOCS_PATTERNS = [
+  /\b(what\s+(?:is|are)\s+your\s+official\s+documents|what\s+official\s+documents\s+do\s+you\s+(?:have|use)|what\s+documents\s+do\s+you\s+(?:have\s+access\s+to|use)|list\s+(?:your\s+)?official\s+documents)\b/i,
+];
+
+const GUIDANCE_CONSTRAINT_PATTERNS = [
+  /can\s+only\s+answer\s+questions\s+addressed\s+in\s+these\s+official\s+guidance\s+documents/i,
+  /why\s+can\s+you\s+only\s+answer\s+from\s+official\s+guidance\s+documents/i,
+];
+
+export interface PreRetrievalResponse {
+  answer: string;
+  claims: [];
+}
+
+export function checkPreRetrieval(message: string): PreRetrievalResponse | null {
+  // 1. Scope guard: Calorie/energy targets, weight recommendations, individual medical advice
+  if (isBlocked(message)) {
+    return {
+      answer:
+        "I'm not able to provide personal dietary targets, weight recommendations, or medical advice. Please consult a registered dietitian or your doctor.",
+      claims: [],
+    };
+  }
+
+  // 2. Threats, violence, and abusive statements
+  if (THREAT_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "I cannot engage with threats of violence or harm. Please keep our conversation focused on dietary, nutrition, and food safety questions.",
+      claims: [],
+    };
+  }
+
+  // 3. Acute emergencies, dehydration crisis, and seawater ingestion
+  if (EMERGENCY_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "EMERGENCY / SAFETY WARNING: Do NOT drink seawater under any circumstances. Drinking seawater introduces dangerous concentrations of salt (hypernatremia), rapidly accelerating fatal dehydration and causing acute kidney failure. If you are in immediate danger or stranded, please contact emergency rescue services or signal for help immediately. As an AI dietary guidance assistant, I cannot provide emergency medical intervention or wilderness survival rescue.",
+      claims: [],
+    };
+  }
+
+  // 4. Lost personal belongings / non-nutrition personal property
+  if (PERSONAL_ITEM_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "I cannot help you locate personal belongings like your wallet or keys. I am an AI dietary guidance assistant dedicated solely to answering questions about food, nutrition, and food safety based on official public health guidelines.",
+      claims: [],
+    };
+  }
+
+  // 5. Bot capabilities & identity
+  if (CAPABILITIES_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "I am an AI dietary guidance assistant. I can answer questions about food, general nutrition, healthy eating patterns, food storage safety, cooking temperatures, and nutrient reference values based strictly on authoritative international guidelines. I cannot provide personalized medical advice, individual calorie targets, or weight management plans, nor can I answer non-nutrition topics.",
+      claims: [],
+    };
+  }
+
+  // 6. Official documents list inquiry
+  if (OFFICIAL_DOCS_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "I answer questions strictly grounded in the following official guidance documents:\n- Dietary Guidelines for Americans, 2020–2025 (USDA & HHS)\n- Healthy Diet Fact Sheet (WHO, 2024)\n- The Eatwell Guide (Public Health England, 2016)\n- Dietary Reference Values — Summary Report (EFSA, 2017)\n- Cold Food Storage Charts (FoodSafety.gov, 2024)\n- Australian Dietary Guidelines (NHMRC, 2013)\n- FDA Food Code (FDA, 2022)",
+      claims: [],
+    };
+  }
+
+  // 7. Official guidance documents constraint reference
+  if (GUIDANCE_CONSTRAINT_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "Yes, that is correct. To ensure safety and factual reliability, I am strictly bounded to answer questions addressed in recognized official dietary guidance documents. If you have questions regarding nutrition, vitamins, or food safety guidelines, please feel free to ask!",
+      claims: [],
+    };
+  }
+
+  return null;
+}
+

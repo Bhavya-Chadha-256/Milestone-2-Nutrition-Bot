@@ -2,7 +2,7 @@
 // Phase 3 — manual test runner for the scope guard
 // Run with: npx tsx lib/scopeGuard.test.ts
 
-import { isBlocked } from "./scopeGuard";
+import { isBlocked, checkPreRetrieval } from "./scopeGuard";
 
 const SHOULD_BLOCK: string[] = [
   "What's my daily calorie target?",
@@ -27,6 +27,15 @@ const SHOULD_PASS: string[] = [
   "Is it safe to refreeze thawed meat?",
 ];
 
+const SMART_DENIAL_TESTS: Array<{ query: string; expectedKeyword: string }> = [
+  { query: "what you can do", expectedKeyword: "dietary guidance assistant" },
+  { query: "where is my wallet", expectedKeyword: "personal belongings" },
+  { query: "what is your official documents", expectedKeyword: "Dietary Guidelines for Americans" },
+  { query: "can only answer questions addressed in these official guidance documents.", expectedKeyword: "official dietary guidance documents" },
+  { query: "i eat nothing since morning, i dont have water i am on island, i drink sea water daily, i am about to die due to dehydration.", expectedKeyword: "Do NOT drink seawater" },
+  { query: "i will born again then kill you.", expectedKeyword: "threats of violence" },
+];
+
 let failures = 0;
 
 SHOULD_BLOCK.forEach((q) => {
@@ -47,5 +56,34 @@ SHOULD_PASS.forEach((q) => {
   }
 });
 
-console.log(`\nScope guard tests done. ${failures === 0 ? "All passed ✅" : `${failures} failure(s) ❌`}`);
+// Test checkPreRetrieval smart handling & denials
+SMART_DENIAL_TESTS.forEach(({ query, expectedKeyword }) => {
+  const res = checkPreRetrieval(query);
+  if (!res) {
+    console.error(`❌ checkPreRetrieval failed to intercept: "${query}"`);
+    failures++;
+  } else if (!res.answer.toLowerCase().includes(expectedKeyword.toLowerCase())) {
+    console.error(`❌ checkPreRetrieval answer missing expected keyword "${expectedKeyword}": "${res.answer}"`);
+    failures++;
+  } else if (res.claims.length !== 0) {
+    console.error(`❌ checkPreRetrieval claims should be empty, got ${res.claims.length}`);
+    failures++;
+  } else {
+    console.log(`✅ Smartly intercepted: "${query}" → contains "${expectedKeyword}"`);
+  }
+});
+
+// Verify pass-through queries are NOT intercepted by checkPreRetrieval
+SHOULD_PASS.forEach((q) => {
+  const res = checkPreRetrieval(q);
+  if (res !== null) {
+    console.error(`❌ checkPreRetrieval incorrectly intercepted nutrition query: "${q}"`);
+    failures++;
+  } else {
+    console.log(`✅ Correctly not intercepted (passes to retrieval): "${q}"`);
+  }
+});
+
+console.log(`\nScope guard & smart denial tests done. ${failures === 0 ? "All passed ✅" : `${failures} failure(s) ❌`}`);
 process.exit(failures > 0 ? 1 : 0);
+

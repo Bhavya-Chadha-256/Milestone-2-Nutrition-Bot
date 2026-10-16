@@ -2,7 +2,7 @@
 // Phase 6 — Full RAG orchestration
 // Flow: scope guard → retrieve → relevance gate → prompt → LLM → parse → return
 
-import { isBlocked } from "./scopeGuard";
+import { checkPreRetrieval } from "./scopeGuard";
 import { retrieveChunks } from "./retriever";
 import { relevanceGate, buildCorpusMissResponse } from "./relevanceGate";
 import { buildPrompt } from "./promptBuilder";
@@ -23,16 +23,6 @@ function getGroqClient(): Groq {
 }
 
 const MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
-
-// ── Scope guard refusal ──────────────────────────────────────────────────────
-
-function buildScopeGuardResponse(): ChatResponse {
-  return {
-    answer:
-      "I'm not able to provide personal dietary targets, weight recommendations, or medical advice. Please consult a registered dietitian or your doctor.",
-    claims: [],
-  };
-}
 
 // ── JSON cleanup helper ───────────────────────────────────────────────────────
 
@@ -120,9 +110,10 @@ export async function ragPipeline(
   message: string,
   sessionId: string
 ): Promise<ChatResponse> {
-  // Step 1: Scope guard (pre-retrieval — no vector search wasted)
-  if (isBlocked(message)) {
-    return buildScopeGuardResponse();
+  // Step 1: Pre-retrieval triage and scope guard (no vector search wasted on meta, off-topic, emergency, or hostile queries)
+  const preResponse = checkPreRetrieval(message);
+  if (preResponse) {
+    return preResponse;
   }
 
   // Step 2: Retrieve top-k chunks from Chroma
@@ -172,6 +163,11 @@ export async function ragPipeline(
     /not able to provide/i,
     /not covered in the/i,
     /outside (?:the )?scope/i,
+    /cannot help you (?:locate|find)/i,
+    /cannot engage with threats/i,
+    /emergency \/ safety warning/i,
+    /do not drink seawater/i,
+    /strictly bounded to answer questions/i,
   ];
 
   const isDeclinedOrNoInfo = refusalPatterns.some((pattern) => pattern.test(response.answer));
