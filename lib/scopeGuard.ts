@@ -58,6 +58,21 @@ const PERSONAL_ITEM_PATTERNS = [
   /\b(find\s+my\s+(?:wallet|keys|phone|bag|purse|passport))\b/i,
 ];
 
+const NON_HUMAN_OR_FICTIONAL_PATTERNS = [
+  /\b(alien|aliens|extraterrestrial|extraterrestrials|martian|martians)\b/i,
+  /\b(vampire|vampires|werewolf|werewolves|zombie|zombies|ghost|ghosts|demon|demons)\b/i,
+  /\b(dragon|dragons|unicorn|unicorns|mermaid|mermaids|monster|monsters)\b/i,
+  /\b(robot|robots|cyborg|cyborgs|android|androids)\b/i,
+  /\b(dog|dogs|cat|cats|puppy|puppies|kitten|kittens|pet|pets)\s+(food|diet|eat|drink|safe|good|toxic|bad)\b/i,
+  /\b(feed|give)\s+(my\s+)?(dog|cat|pet|puppy|kitten)\b/i,
+  /\b(good|safe|bad|healthy)\s+for\s+(aliens?|vampires?|zombies?|dragons?|ghosts?|monsters?|robots?|cyborgs?|dogs?|cats?|pets?)\b/i,
+];
+
+const INEDIBLE_SUBSTANCE_PATTERNS = [
+  /\b(eat|eating|consume|consuming|drink|drinking|ingest|ingesting)\s+(?:a\s+|some\s+)?(petrol|gasoline|diesel|motor\s*oil|engine\s*oil|bleach|detergent|battery|batteries|lava|molten\s+\w+|rocks?|stones?|glass|plastic|metal|screws?|nails?)\b/i,
+  /\b(is|can\s+(?:i|one|we)\s+eat|safe\s+to\s+(?:eat|drink))\s+(?:a\s+|some\s+)?(petrol|gasoline|motor\s*oil|bleach|detergent|rocks?|stones?|glass|plastic|metal|lava)\b/i,
+];
+
 const CAPABILITIES_PATTERNS = [
   /\b(what\s+(?:you\s+can|can\s+you)\s+do(?:\s+for\s+me|\s+here)?|\bwho\s+are\s+you\b|\bwhat\s+are\s+your\s+capabilities\b|\bwhat\s+is\s+your\s+purpose\b)\b/i,
   /\b(how\s+can\s+you\s+help(\s+me)?)\b/i,
@@ -105,7 +120,25 @@ export function checkPreRetrieval(message: string): PreRetrievalResponse | null 
     };
   }
 
-  // 4. Lost personal belongings / non-nutrition personal property
+  // 4. Non-human entities, fictional beings, aliens, or animals/pets
+  if (NON_HUMAN_OR_FICTIONAL_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "I can only provide dietary and food safety guidance for human nutrition based on official public health guidelines. I cannot answer hypothetical, fictional, or non-human dietary questions regarding aliens, fictional creatures, or animals.",
+      claims: [],
+    };
+  }
+
+  // 5. Inedible or hazardous non-food substances
+  if (INEDIBLE_SUBSTANCE_PATTERNS.some((p) => p.test(message))) {
+    return {
+      answer:
+        "SAFETY WARNING: That substance is completely inedible and hazardous to human health. I am an AI dietary guidance assistant dedicated solely to safe, edible food and evidence-based human nutrition guidelines.",
+      claims: [],
+    };
+  }
+
+  // 6. Lost personal belongings / non-nutrition personal property
   if (PERSONAL_ITEM_PATTERNS.some((p) => p.test(message))) {
     return {
       answer:

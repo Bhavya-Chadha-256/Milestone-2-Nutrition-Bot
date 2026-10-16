@@ -163,11 +163,18 @@ export async function ragPipeline(
     /not able to provide/i,
     /not covered in the/i,
     /outside (?:the )?scope/i,
-    /cannot help you (?:locate|find)/i,
+    /cannot help (?:you )?(?:locate|find|with)/i,
     /cannot engage with threats/i,
     /emergency \/ safety warning/i,
+    /safety warning/i,
     /do not drink seawater/i,
     /strictly bounded to answer questions/i,
+    /only provide dietary and food safety guidance for human/i,
+    /cannot answer hypothetical/i,
+    /inedible/i,
+    /hazardous/i,
+    /dedicated solely to/i,
+    /I am an AI dietary guidance assistant/i,
   ];
 
   const isDeclinedOrNoInfo = refusalPatterns.some((pattern) => pattern.test(response.answer));
@@ -207,7 +214,7 @@ export async function ragPipeline(
       }
     }
 
-    // Enforce mandatory medical advice disclaimer on all advisory responses
+    // Enforce mandatory medical advice disclaimer on all advisory nutrition responses
     const hasMedicalDisclaimer = /doctor|dietitian|dietician|physician/i.test(response.answer);
     if (!hasMedicalDisclaimer) {
       response.answer =
